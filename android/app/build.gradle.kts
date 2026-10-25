@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "com.linkbridge.app"
-        minSdk = 28 // Supports Android 9.0 (Pie) up to the latest Android 14/15+
+        minSdk = 28 // Android 9.0 (Pie) minimum as required
         targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
@@ -17,30 +17,9 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    signingConfigs {
-        create("release") {
-            val ksFile = file("release.keystore")
-            if (ksFile.exists()) {
-                storeFile = ksFile
-                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "LinkBridgeRelease2026!"
-                keyAlias = System.getenv("KEY_ALIAS") ?: "linkbridge"
-                keyPassword = System.getenv("KEY_PASSWORD") ?: "LinkBridgeRelease2026!"
-                enableV1Signing = true
-                enableV2Signing = true
-                enableV3Signing = true
-                enableV4Signing = true
-            }
-        }
-    }
-
     buildTypes {
         release {
-            isMinifyEnabled = false
-            isShrinkResources = false
-            val ksFile = file("release.keystore")
-            if (ksFile.exists()) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -48,10 +27,6 @@ android {
         }
         debug {
             isMinifyEnabled = false
-            val ksFile = file("release.keystore")
-            if (ksFile.exists()) {
-                signingConfig = signingConfigs.getByName("release")
-            }
         }
     }
 
