@@ -1,20 +1,14 @@
 package com.linkbridge.app.ui
 
-import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -27,9 +21,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
 import androidx.documentfile.provider.DocumentFile
 import com.linkbridge.app.R
 import com.linkbridge.app.clipboard.AndroidClipboardController
@@ -56,7 +48,6 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val REQ_PICK_FILES = 1001
         private const val REQ_PICK_SAVE_FOLDER = 1002
-        private const val REQ_RUNTIME_PERMS = 1003
         private const val APPROVAL_CHANNEL_ID = "linkbridge_approval_alerts"
         @Volatile
         var activeTransport: TransportAdapter? = null
@@ -68,9 +59,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var fileController: SafFileTransferController
     private lateinit var discoveryEngine: AndroidAutoDiscoveryEngine
     private var selectedSaveTreeUri: Uri? = null
-    private var isDarkTheme: Boolean = true
 
-    private lateinit var rootScroll: ScrollView
     private lateinit var tvStatusBadge: TextView
     private lateinit var tvLocalInfo: TextView
     private lateinit var btnDisconnect: Button
@@ -78,18 +67,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etTextToSend: EditText
     private lateinit var progressBar: ProgressBar
     private lateinit var tvTransferProgress: TextView
-    private lateinit var historyItemsContainer: LinearLayout
+    private lateinit var tvHistoryLog: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         supportActionBar?.hide()
 
         db = LinkBridgeDatabase(this)
-        if (db.getSetting("init_v1_defaults", "") == "") {
+        if (db.getSetting("init_v2_defaults", "") == "") {
             db.setSetting("auto_copy_received_to_clipboard", "true")
-            db.setSetting("init_v1_defaults", "done")
+            db.setSetting("init_v2_defaults", "done")
         }
-        isDarkTheme = db.getSetting("ui_dark_theme", "true") == "true"
 
         identity = AndroidDeviceIdentity.loadOrCreate(db)
         clipboardController = AndroidClipboardController(this, identity.deviceId, db)
@@ -101,7 +89,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         createNotificationChannel()
-        requestModernAndroidPermissionsIfNeeded()
         buildModernCardUi()
 
         discoveryEngine = AndroidAutoDiscoveryEngine(
@@ -120,42 +107,6 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         if (isFinishing) {
             discoveryEngine.stop()
-        }
-    }
-
-    /**
-     * Requests runtime permissions required on Android 12, 13, 14, and 15+ (API 31..35)
-     * so Bluetooth discovery and high-priority notifications work smoothly on all modern phones.
-     */
-    private fun requestModernAndroidPermissionsIfNeeded() {
-        val needed = mutableListOf<String>()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                needed.add(Manifest.permission.BLUETOOTH_CONNECT)
-            }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-                needed.add(Manifest.permission.BLUETOOTH_SCAN)
-            }
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                needed.add(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                needed.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            }
-        }
-        if (needed.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, needed.toTypedArray(), REQ_RUNTIME_PERMS)
-        }
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQ_RUNTIME_PERMS && ::discoveryEngine.isInitialized) {
-            discoveryEngine.refreshBluetoothPairedDevices()
         }
     }
 
@@ -188,14 +139,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun buildModernCardUi() {
         window.decorView.layoutDirection = View.LAYOUT_DIRECTION_RTL
-        val bgCanvas = if (isDarkTheme) Color.parseColor("#0B1120") else Color.parseColor("#F1F5F9")
-        val cardBg = if (isDarkTheme) Color.parseColor("#1E293B") else Color.parseColor("#FFFFFF")
-        val textPrimary = if (isDarkTheme) Color.parseColor("#F8FAFC") else Color.parseColor("#0F172A")
-        val textSecondary = if (isDarkTheme) Color.parseColor("#94A3B8") else Color.parseColor("#475569")
-        val inputBg = if (isDarkTheme) Color.parseColor("#0F172A") else Color.parseColor("#F8FAFC")
-
-        rootScroll = ScrollView(this).apply {
-            setBackgroundColor(bgCanvas)
+        val rootScroll = ScrollView(this).apply {
+            setBackgroundColor(Color.parseColor("#0F172A"))
         }
         val mainLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -203,53 +148,28 @@ class MainActivity : AppCompatActivity() {
         }
         rootScroll.addView(mainLayout)
 
-        // ============================================================
-        // HEADER CARD: App Title, Theme Switcher & Live Connection Status
-        // ============================================================
         val headerCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = makeCardDrawable(cardBg, Color.parseColor("#334155"))
+            background = makeCardDrawable(Color.parseColor("#1E293B"), Color.parseColor("#334155"))
             setPadding(36, 32, 36, 32)
         }
-        val topRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
         val tvTitle = TextView(this).apply {
-            text = "🌉 LinkBridge v1.0.0"
-            textSize = 20f
+            text = "🌉 LinkBridge — الجسر المحلي الذكي"
+            textSize = 21f
             setTypeface(typeface, Typeface.BOLD)
-            setTextColor(textPrimary)
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            setTextColor(Color.parseColor("#F8FAFC"))
         }
-        val btnTheme = Button(this).apply {
-            text = if (isDarkTheme) "☀️ فاتح" else "🌙 داكن"
-            setTextColor(Color.WHITE)
-            background = makeButtonDrawable(Color.parseColor("#334155"), 18f)
-            setOnClickListener {
-                isDarkTheme = !isDarkTheme
-                db.setSetting("ui_dark_theme", isDarkTheme.toString())
-                buildModernCardUi()
-                updateLocalIpHeader()
-                updateConnectionBanner()
-                refreshHistoryView()
-            }
-        }
-        topRow.addView(tvTitle)
-        topRow.addView(btnTheme)
-        headerCard.addView(topRow)
-
         tvStatusBadge = TextView(this).apply {
             text = "🔵 جاهز للاتصال التلقائي — اختر الكمبيوتر بالأسفل أو وافق على الإشعار"
             textSize = 14.5f
             setTypeface(typeface, Typeface.BOLD)
-            setTextColor(Color.parseColor("#0284C7"))
+            setTextColor(Color.parseColor("#38BDF8"))
             setPadding(0, 14, 0, 8)
         }
         tvLocalInfo = TextView(this).apply {
             text = "📱 جاري فحص عنوان الشبكة..."
             textSize = 12.5f
-            setTextColor(textSecondary)
+            setTextColor(Color.parseColor("#94A3B8"))
         }
         btnDisconnect = Button(this).apply {
             text = "❌ قطع الاتصال الحالي"
@@ -262,26 +182,25 @@ class MainActivity : AppCompatActivity() {
                 updateConnectionBanner()
             }
         }
+        headerCard.addView(tvTitle)
         headerCard.addView(tvStatusBadge)
         headerCard.addView(tvLocalInfo)
         headerCard.addView(btnDisconnect)
         mainLayout.addView(headerCard)
 
-        mainLayout.addView(View(this).apply { minimumHeight = 28 })
+        val spacer1 = View(this).apply { minimumHeight = 28 }
+        mainLayout.addView(spacer1)
 
-        // ============================================================
-        // CARD 1: Discovered Devices (Wi-Fi / Hotspot / Bluetooth)
-        // ============================================================
         val devCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = makeCardDrawable(cardBg, Color.parseColor("#0284C7"))
+            background = makeCardDrawable(Color.parseColor("#1E293B"), Color.parseColor("#0284C7"))
             setPadding(34, 30, 34, 30)
         }
         val devHeader = TextView(this).apply {
-            text = "📡 1. الأجهزة المتاحة حولك (اضغط للاتصال الفوري بدون رمز)"
+            text = "📡 1. الأجهزة المتاحة حولك (اضغط على الجهاز للاتصال الفوري بدون رمز)"
             textSize = 15.5f
             setTypeface(typeface, Typeface.BOLD)
-            setTextColor(Color.parseColor("#0284C7"))
+            setTextColor(Color.parseColor("#38BDF8"))
             setPadding(0, 0, 0, 16)
         }
         devCard.addView(devHeader)
@@ -310,14 +229,12 @@ class MainActivity : AppCompatActivity() {
 
         renderDiscoveredDevices(emptyList())
 
-        mainLayout.addView(View(this).apply { minimumHeight = 28 })
+        val spacer2 = View(this).apply { minimumHeight = 28 }
+        mainLayout.addView(spacer2)
 
-        // ============================================================
-        // CARD 2: Clipboard Bridge & Interactive History
-        // ============================================================
         val clipCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = makeCardDrawable(cardBg, Color.parseColor("#10B981"))
+            background = makeCardDrawable(Color.parseColor("#1E293B"), Color.parseColor("#10B981"))
             setPadding(34, 30, 34, 30)
         }
         val clipHeader = TextView(this).apply {
@@ -341,9 +258,9 @@ class MainActivity : AppCompatActivity() {
 
         etTextToSend = EditText(this).apply {
             hint = "أو اكتب / الصق أي نص أو رابط هنا لإرساله للكمبيوتر..."
-            setHintTextColor(textSecondary)
-            setTextColor(textPrimary)
-            background = makeCardDrawable(inputBg, Color.parseColor("#334155"), 18f)
+            setHintTextColor(Color.parseColor("#64748B"))
+            setTextColor(Color.parseColor("#F8FAFC"))
+            background = makeCardDrawable(Color.parseColor("#0F172A"), Color.parseColor("#334155"), 18f)
             setPadding(24, 20, 24, 20)
             minLines = 2
         }
@@ -363,7 +280,7 @@ class MainActivity : AppCompatActivity() {
 
         val chkAutoCopy = CheckBox(this).apply {
             text = "⚡ نسخ النصوص الواردة من الكمبيوتر إلى حافظة الهاتف تلقائيًا"
-            setTextColor(textPrimary)
+            setTextColor(Color.parseColor("#E2E8F0"))
             isChecked = db.getSetting("auto_copy_received_to_clipboard", "true") == "true"
             setPadding(8, 18, 8, 8)
             setOnCheckedChangeListener { _, isChecked ->
@@ -372,36 +289,27 @@ class MainActivity : AppCompatActivity() {
         }
         clipCard.addView(chkAutoCopy)
 
-        val tvHistTitle = TextView(this).apply {
-            text = "🕘 آخر النصوص المتبادلة (اضغط على أي نص لنسخه فورًا):"
+        tvHistoryLog = TextView(this).apply {
+            setTextColor(Color.parseColor("#CBD5E1"))
             textSize = 13f
-            setTypeface(typeface, Typeface.BOLD)
-            setTextColor(textSecondary)
-            setPadding(4, 14, 4, 8)
+            setPadding(12, 16, 12, 8)
         }
-        clipCard.addView(tvHistTitle)
-
-        historyItemsContainer = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
-        clipCard.addView(historyItemsContainer)
+        clipCard.addView(tvHistoryLog)
         mainLayout.addView(clipCard)
 
-        mainLayout.addView(View(this).apply { minimumHeight = 28 })
+        val spacer3 = View(this).apply { minimumHeight = 28 }
+        mainLayout.addView(spacer3)
 
-        // ============================================================
-        // CARD 3: File Transfers (Send & Receive)
-        // ============================================================
         val fileCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = makeCardDrawable(cardBg, Color.parseColor("#38BDF8"))
+            background = makeCardDrawable(Color.parseColor("#1E293B"), Color.parseColor("#38BDF8"))
             setPadding(34, 30, 34, 30)
         }
         val fileHeader = TextView(this).apply {
-            text = "📁 3. إرسال واستقبال الملفات (تُحفظ تلقائيًا في Download/LinkBridge)"
+            text = "📁 3. إرسال واستقبال الملفات (تُحفظ تلقائيًا في التنزيلات Download/LinkBridge)"
             textSize = 15.5f
             setTypeface(typeface, Typeface.BOLD)
-            setTextColor(Color.parseColor("#0284C7"))
+            setTextColor(Color.parseColor("#38BDF8"))
             setPadding(0, 0, 0, 16)
         }
         fileCard.addView(fileHeader)
@@ -424,14 +332,14 @@ class MainActivity : AppCompatActivity() {
         tvTransferProgress = TextView(this).apply {
             text = "📂 مسار حفظ الملفات الواردة: Download/LinkBridge"
             textSize = 12.5f
-            setTextColor(textSecondary)
+            setTextColor(Color.parseColor("#94A3B8"))
         }
         fileCard.addView(progressBar)
         fileCard.addView(tvTransferProgress)
 
         val btnPickSaveDir = Button(this).apply {
             text = "⚙️ تغيير مجلد الاستقبال (اختياري)"
-            setTextColor(Color.WHITE)
+            setTextColor(Color.parseColor("#CBD5E1"))
             background = makeButtonDrawable(Color.parseColor("#334155"))
             setOnClickListener { openSafFolderPicker() }
         }
@@ -442,12 +350,9 @@ class MainActivity : AppCompatActivity() {
         fileCard.addView(btnPickSaveDir, lpFolderBtn)
         mainLayout.addView(fileCard)
 
-        // ============================================================
-        // FOOTER: Quick Notification Toggle & Developer Card
-        // ============================================================
         val chkFgService = CheckBox(this).apply {
             text = "🔔 إظهار إشعار الإرسال السريع الدائم في شريط الإشعارات"
-            setTextColor(textSecondary)
+            setTextColor(Color.parseColor("#94A3B8"))
             setPadding(8, 24, 8, 8)
             setOnCheckedChangeListener { _, isChecked ->
                 val svcIntent = Intent(this@MainActivity, LinkBridgeForegroundService::class.java)
@@ -456,31 +361,20 @@ class MainActivity : AppCompatActivity() {
         }
         mainLayout.addView(chkFgService)
 
-        val devFooterCard = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = makeCardDrawable(cardBg, Color.parseColor("#334155"), 22f)
-            setPadding(28, 24, 28, 24)
-            gravity = Gravity.CENTER
-        }
         val tvAbout = TextView(this).apply {
-            text = "LinkBridge v1.0.0 — Smart Local Bridge\n✦ Developed by Mohammed Albukeer ✦\nmohammedalbukeer@gmail.com"
+            text = "${getString(R.string.about_title)}\n✦ ${getString(R.string.about_credit)} ✦"
             gravity = Gravity.CENTER
             textSize = 14f
             setTypeface(typeface, Typeface.BOLD)
-            setTextColor(Color.parseColor("#0284C7"))
+            setTextColor(Color.parseColor("#38BDF8"))
+            setPadding(20, 32, 20, 20)
         }
-        devFooterCard.addView(tvAbout)
-        val lpFooter = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = 20 }
-        mainLayout.addView(devFooterCard, lpFooter)
+        mainLayout.addView(tvAbout)
 
         setContentView(rootScroll)
     }
 
     private fun updateLocalIpHeader() {
-        if (!::discoveryEngine.isInitialized) return
         val ips = discoveryEngine.getLocalIpAddresses()
         tvLocalInfo.text = "📱 اسم هذا الهاتف: ${identity.deviceName}  |  الشبكة: ${ips.joinToString(" , ")}:${ProtocolConstants.DEFAULT_WIFI_PORT}"
     }
@@ -493,7 +387,7 @@ class MainActivity : AppCompatActivity() {
             btnDisconnect.visibility = View.VISIBLE
         } else {
             tvStatusBadge.text = "🔵 جاهز للاتصال التلقائي — اختر الكمبيوتر بالأسفل أو وافق على الإشعار"
-            tvStatusBadge.setTextColor(Color.parseColor("#0284C7"))
+            tvStatusBadge.setTextColor(Color.parseColor("#38BDF8"))
             btnDisconnect.visibility = View.GONE
         }
     }
@@ -514,7 +408,7 @@ class MainActivity : AppCompatActivity() {
         for (dev in devices) {
             val icon = if (dev.route == TransportRoute.BLUETOOTH_RFCOMM) "🔵 بلوتوث" else "💻 واي فاي / نقطة اتصال"
             val btnDev = Button(this).apply {
-                text = "🔗 اتصال فوري بـ: ${dev.deviceName}\n($icon — ${dev.ip})"
+                text = "🔗 اتصال بـ: ${dev.deviceName}\n($icon — ${dev.ip})"
                 setTextColor(Color.WHITE)
                 textSize = 14f
                 background = makeButtonDrawable(Color.parseColor("#0284C7"))
@@ -658,39 +552,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshHistoryView() {
-        historyItemsContainer.removeAllViews()
-        val items = db.listRecentClipboardItems(10)
-        if (items.isEmpty()) {
-            val tvEmpty = TextView(this).apply {
-                text = "لا توجد نصوص في السجل بعد — أي نص ترسله أو تستلمه سيظهر هنا كبطاقة تفاعلية."
-                setTextColor(Color.parseColor("#64748B"))
-                textSize = 12.5f
-                setPadding(8, 8, 8, 8)
-            }
-            historyItemsContainer.addView(tvEmpty)
-            return
-        }
-        val rowBg = if (isDarkTheme) Color.parseColor("#0F172A") else Color.parseColor("#F1F5F9")
-        val rowText = if (isDarkTheme) Color.parseColor("#E2E8F0") else Color.parseColor("#1E293B")
-        for (itemText in items) {
-            val tvRow = TextView(this).apply {
-                text = "$itemText  (اضغط للنسخ 📋)"
-                setTextColor(rowText)
-                textSize = 13f
-                background = makeCardDrawable(rowBg, Color.parseColor("#334155"), 16f)
-                setPadding(22, 18, 22, 18)
-                setOnClickListener {
-                    val rawContent = itemText.substringAfter("] ").trim()
-                    val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    cm.setPrimaryClip(ClipData.newPlainText("LinkBridge", rawContent))
-                    Toast.makeText(this@MainActivity, "✅ تم نسخ النص إلى حافظة الهاتف!", Toast.LENGTH_SHORT).show()
-                }
-            }
-            val lp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = 10 }
-            historyItemsContainer.addView(tvRow, lp)
+        val items = db.listRecentClipboardItems(12)
+        tvHistoryLog.text = if (items.isEmpty()) {
+            "سجل النصوص فارغ حاليًا — أي نص ترسله أو تستلمه سيظهر هنا."
+        } else {
+            "آخر النصوص المتبادلة:\n" + items.joinToString("\n")
         }
     }
 
