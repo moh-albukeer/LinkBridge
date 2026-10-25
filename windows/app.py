@@ -289,16 +289,7 @@ def launch_pyside6_gui(data_dir: Path, start_minimized: bool = False) -> int:
             self.tabs = QTabWidget()
             main_layout.addWidget(self.tabs)
 
-            # Persistent Interactive Footer Bar
-            footer_bar = QHBoxLayout()
-            self.lbl_footer_dev = QLabel("✦ Developed by Mohammed Albukeer  |  mohammedalbukeer@gmail.com  |  LinkBridge v1.0.0 ✦")
-            self.lbl_footer_dev.setStyleSheet("font-size: 12px; font-weight: 600; color: #38BDF8; padding: 4px;")
-            self.btn_quick_theme = QPushButton("🌙 / ☀️ المظهر")
-            self.btn_quick_theme.setObjectName("secondaryBtn")
-            self.btn_quick_theme.clicked.connect(self._toggle_theme)
-            footer_bar.addWidget(self.lbl_footer_dev, stretch=3)
-            footer_bar.addWidget(self.btn_quick_theme)
-            main_layout.addLayout(footer_bar)
+
 
             # =========================================================
             # TAB 1: Main Unified Workspace (Discovery + Clipboard + Files)
@@ -396,18 +387,7 @@ def launch_pyside6_gui(data_dir: Path, start_minimized: bool = False) -> int:
             self.btn_clear_clip = QPushButton("🗑️ مسح السجل")
             self.btn_clear_clip.setObjectName("dangerBtn")
             self.btn_clear_clip.clicked.connect(self._on_clear_clipboard_history)
-            self.btn_copy_selected_clip = QPushButton("📋 نسخ المحدد")
-            self.btn_copy_selected_clip.clicked.connect(self._on_copy_selected_clip)
-            self.btn_resend_selected_clip = QPushButton("🔁 إعادة إرسال المحدد")
-            self.btn_resend_selected_clip.clicked.connect(self._on_resend_selected_clip)
-            self.btn_del_selected_clip = QPushButton("❌ حذف المحدد")
-            self.btn_del_selected_clip.setObjectName("secondaryBtn")
-            self.btn_del_selected_clip.clicked.connect(self._on_delete_selected_clip)
-
             clip_top.addWidget(self.input_clip_search, stretch=3)
-            clip_top.addWidget(self.btn_copy_selected_clip)
-            clip_top.addWidget(self.btn_resend_selected_clip)
-            clip_top.addWidget(self.btn_del_selected_clip)
             clip_top.addWidget(self.btn_clear_clip)
             clip_layout.addLayout(clip_top)
 
