@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LinkBridge</string>
+    <string name="share_to_linkbridge">إرسال إلى الكمبيوتر عبر LinkBridge</string>
+    <string name="status_disconnected">جاهز للاتصال التلقائي — اختر الكمبيوتر بالأسفل أو وافق على الإشعار</string>
+    <string name="route_wifi_lan">شبكة Wi-Fi المحلية (الأسرع للملفات الكبيرة)</string>
+    <string name="route_wifi_hotspot">نقطة اتصال الهاتف (دون إنترنت)</string>
+    <string name="route_bluetooth">بلوتوث كلاسيكي (Bluetooth RFCOMM)</string>
+    <string name="hint_pairing_pin">موافقة بضغطة واحدة</string>
+    <string name="btn_connect">اتصال فوري</string>
+    <string name="hint_enter_text">اكتب أو الصق نصًا لإرساله إلى الكمبيوتر...</string>
+    <string name="btn_send_clipboard_now">إرسال محتوى الحافظة الحالي الآن</string>
+    <string name="btn_send_text">إرسال النص المكتوب</string>
+    <string name="btn_pick_and_send_files">اختيار وإرسال ملفات للكمبيوتر</string>
+    <string name="btn_select_receive_folder">تغيير مجلد الاستقبال (اختياري)</string>
+    <string name="chk_auto_copy_clipboard">نسخ النص المستلم إلى حافظة الهاتف تلقائيًا</string>
+    <string name="chk_enable_quick_notification">إظهار إشعار الإرسال السريع الدائم</string>
+    <string name="btn_toggle_theme">تبديل المظهر الداكن / الفاتح</string>
+    <string name="notif_quick_send_desc">اضغط لإرسال الحافظة أو الملفات عبر الشبكة المحلية</string>
+    <string name="about_title">LinkBridge v1.0.0 — الجسر المحلي الذكي بين Android وWindows</string>
+    <string name="about_credit">Developed by Mohammed Albukeer | mohammedalbukeer@gmail.com</string>
+</resources>

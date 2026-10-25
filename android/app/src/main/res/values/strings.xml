@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LinkBridge</string>
+    <string name="share_to_linkbridge">Send to PC via LinkBridge</string>
+    <string name="status_disconnected">Ready for Auto-Discovery — Select your PC below or approve notification</string>
+    <string name="route_wifi_lan">Local Wi-Fi LAN (Fastest for large files)</string>
+    <string name="route_wifi_hotspot">Phone Wi-Fi Hotspot (Offline)</string>
+    <string name="route_bluetooth">Bluetooth Classic (RFCOMM)</string>
+    <string name="hint_pairing_pin">One-Tap Approval</string>
+    <string name="btn_connect">Connect Now</string>
+    <string name="hint_enter_text">Type or paste text to send to Windows...</string>
+    <string name="btn_send_clipboard_now">Send Current Clipboard Now</string>
+    <string name="btn_send_text">Send Typed Text</string>
+    <string name="btn_pick_and_send_files">Pick &amp; Send Files</string>
+    <string name="btn_select_receive_folder">Change Receive Folder (Optional)</string>
+    <string name="chk_auto_copy_clipboard">Auto-copy received text to Android clipboard</string>
+    <string name="chk_enable_quick_notification">Show Quick-Send Notification Action</string>
+    <string name="btn_toggle_theme">Switch Dark / Light Theme</string>
+    <string name="notif_quick_send_desc">Tap to send clipboard or files over local network</string>
+    <string name="about_title">LinkBridge v1.0.0 — Smart Local Bridge (Android &amp; Windows)</string>
+    <string name="about_credit">Developed by Mohammed Albukeer | mohammedalbukeer@gmail.com</string>
+</resources>
