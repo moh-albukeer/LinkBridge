@@ -1,0 +1,113 @@
+name: Build LinkBridge v1.0.0 Ready-to-Run EXE and APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build-windows-exe:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies & PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r windows/requirements.txt
+
+      - name: Run Automated Protocol & Integration Verification Tests
+        run: |
+          python -u tests/test_linkbridge_suite.py
+
+      - name: Build single-file standalone LinkBridge-Windows.exe (v1.0.0, Signed, No UPX)
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed --noupx `
+            --version-file "windows/version_info.txt" `
+            --name "LinkBridge-Windows" `
+            --paths "." windows/app.py
+
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=Mohammed Albukeer (LinkBridge v1.0.0)" -CertStoreLocation "Cert:\CurrentUser\My" -HashAlgorithm SHA256
+          Set-AuthenticodeSignature -FilePath "dist\LinkBridge-Windows.exe" -Certificate $cert -HashAlgorithm SHA256 | Out-Null
+
+      - name: Upload LinkBridge-Windows.exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: LinkBridge-Windows-EXE
+          path: dist/LinkBridge-Windows.exe
+          if-no-files-found: error
+
+  build-android-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Write Android SDK Licenses & Ensure Platform 34 Installed
+        shell: bash
+        run: |
+          set +e +o pipefail
+          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          export ANDROID_HOME="$SDK_DIR"
+          export ANDROID_SDK_ROOT="$SDK_DIR"
+          echo "ANDROID_HOME=$SDK_DIR" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$SDK_DIR" >> $GITHUB_ENV
+
+          mkdir -p "$SDK_DIR/licenses"
+          printf "\n8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c2829b004d1fee\n859f317696f67ef3d7f30a50a5560e7834b43903\n" > "$SDK_DIR/licenses/android-sdk-license"
+          printf "\n84831b9409646a918e30573bab4c9c91346d8abd\n504667f4c0de7af1a06de9f4b1727b84351f2910\n" > "$SDK_DIR/licenses/android-sdk-preview-license"
+          printf "\n601085b94cd77f0b54ff86406957099ebe79c4d6\n" > "$SDK_DIR/licenses/android-googletv-license"
+          printf "\n33b6a2b64607f11b759f320ef9dff4ae5c47d97a\n" > "$SDK_DIR/licenses/google-gdk-license"
+          printf "\ne9acab5b5fbb560a72cfaecce8946896ff6aab9d\n" > "$SDK_DIR/licenses/mips-android-sysimage-license"
+          printf "\nd975f751698a77b662f1254ddbeed3901e976f5a\n" > "$SDK_DIR/licenses/intel-android-extra-license"
+
+          SDKMGR=$(find "$SDK_DIR" -name sdkmanager -type f | head -n 1)
+          if [ -n "$SDKMGR" ]; then
+            yes | "$SDKMGR" --sdk_root="$SDK_DIR" --licenses >/dev/null 2>&1 || true
+            yes | "$SDKMGR" --sdk_root="$SDK_DIR" --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" >/dev/null 2>&1 || true
+          fi
+          exit 0
+
+      - name: Generate Release Signing Keystore (v1 + v2 + v3 APK Signature Schemes)
+        working-directory: ./android/app
+        run: |
+          if [ ! -f release.keystore ]; then
+            keytool -genkeypair -v               -keystore release.keystore               -alias linkbridge               -keyalg RSA               -keysize 2048               -validity 10000               -storepass "LinkBridgeRelease2026!"               -keypass "LinkBridgeRelease2026!"               -dname "CN=Mohammed Albukeer, OU=Engineering, O=LinkBridge, L=Sanaa, C=YE"
+          fi
+
+      - name: Install Gradle 8.5 (Compatible with AGP 8.2.2 & Kotlin 1.9.22)
+        run: |
+          curl -sSL https://services.gradle.org/distributions/gradle-8.5-bin.zip -o /tmp/gradle-8.5.zip
+          unzip -q -o /tmp/gradle-8.5.zip -d /tmp/gradle
+          echo "/tmp/gradle/gradle-8.5/bin" >> $GITHUB_PATH
+
+      - name: Build Signed Release & Debug APKs (Android 9 through Android 15+)
+        working-directory: ./android
+        run: |
+          /tmp/gradle/gradle-8.5/bin/gradle assembleRelease assembleDebug --no-daemon --stacktrace
+          cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/LinkBridge-Android-v1.0.0.apk
+
+      - name: Upload LinkBridge-Android-APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LinkBridge-Android-APK
+          path: |
+            android/app/build/outputs/apk/LinkBridge-Android-v1.0.0.apk
+            android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
