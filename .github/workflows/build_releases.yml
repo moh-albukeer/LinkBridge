@@ -84,30 +84,20 @@ jobs:
           fi
           exit 0
 
-      - name: Generate Release Signing Keystore (v1 + v2 + v3 APK Signature Schemes)
-        working-directory: ./android/app
-        run: |
-          if [ ! -f release.keystore ]; then
-            keytool -genkeypair -v               -keystore release.keystore               -alias linkbridge               -keyalg RSA               -keysize 2048               -validity 10000               -storepass "LinkBridgeRelease2026!"               -keypass "LinkBridgeRelease2026!"               -dname "CN=Mohammed Albukeer, OU=Engineering, O=LinkBridge, L=Sanaa, C=YE"
-          fi
-
       - name: Install Gradle 8.5 (Compatible with AGP 8.2.2 & Kotlin 1.9.22)
         run: |
           curl -sSL https://services.gradle.org/distributions/gradle-8.5-bin.zip -o /tmp/gradle-8.5.zip
           unzip -q -o /tmp/gradle-8.5.zip -d /tmp/gradle
           echo "/tmp/gradle/gradle-8.5/bin" >> $GITHUB_PATH
 
-      - name: Build Signed Release & Debug APKs (Android 9 through Android 15+)
+      - name: Build Android 9+ APK
         working-directory: ./android
         run: |
-          /tmp/gradle/gradle-8.5/bin/gradle assembleRelease assembleDebug --no-daemon --stacktrace
-          cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/LinkBridge-Android-v1.0.0.apk
+          /tmp/gradle/gradle-8.5/bin/gradle assembleDebug --no-daemon --stacktrace
 
-      - name: Upload LinkBridge-Android-APK
+      - name: Upload LinkBridge-Android.apk
         uses: actions/upload-artifact@v4
         with:
           name: LinkBridge-Android-APK
-          path: |
-            android/app/build/outputs/apk/LinkBridge-Android-v1.0.0.apk
-            android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
