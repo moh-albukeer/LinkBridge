@@ -3,7 +3,11 @@ name: Build LinkBridge v1.0.0 Ready-to-Run EXE and APK
 on:
   push:
     branches: [ "main", "master" ]
+    tags: [ "v*" ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -40,7 +44,7 @@ jobs:
           $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=Mohammed Albukeer (LinkBridge v1.0.0)" -CertStoreLocation "Cert:\CurrentUser\My" -HashAlgorithm SHA256
           Set-AuthenticodeSignature -FilePath "dist\LinkBridge-Windows.exe" -Certificate $cert -HashAlgorithm SHA256 | Out-Null
 
-      - name: Upload LinkBridge-Windows.exe
+      - name: Upload LinkBridge-Windows.exe Artifact
         uses: actions/upload-artifact@v4
         with:
           name: LinkBridge-Windows-EXE
@@ -94,10 +98,66 @@ jobs:
         working-directory: ./android
         run: |
           /tmp/gradle/gradle-8.5/bin/gradle assembleDebug --no-daemon --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/LinkBridge-Android.apk
 
-      - name: Upload LinkBridge-Android.apk
+      - name: Upload LinkBridge-Android.apk Artifact
         uses: actions/upload-artifact@v4
         with:
           name: LinkBridge-Android-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/debug/LinkBridge-Android.apk
           if-no-files-found: error
+
+  publish-github-release:
+    name: Publish EXE & APK to GitHub Releases (v1.0.0)
+    needs: [ build-windows-exe, build-android-apk ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Built Windows EXE & Android APK
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Prepare Direct Release Assets
+        shell: bash
+        run: |
+          mkdir -p release-files
+          find release-assets -name "LinkBridge-Windows.exe" -exec cp {} release-files/LinkBridge-Windows.exe \;
+          find release-assets -name "LinkBridge-Android.apk" -exec cp {} release-files/LinkBridge-Android.apk \;
+          ls -lh release-files/
+
+      - name: Create or Update GitHub Release v1.0.0
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TAG="v1.0.0"
+          TITLE="LinkBridge v1.0.0 — Ready-to-Run Windows EXE & Android APK"
+          NOTES="### 🌉 LinkBridge v1.0.0 — First Official Release
+          **Developed by:** Mohammed Albukeer (mohammedalbukeer@gmail.com)
+
+          #### 📥 Direct Downloads (التحميل المباشر):
+          - 💻 **Windows 10 / 11 (64-bit):** Download **`LinkBridge-Windows.exe`** below and run directly (standalone, zero dependencies).
+          - 📱 **Android 9.0+ (API 28–34+):** Download **`LinkBridge-Android.apk`** below and install directly on your phone."
+
+          git tag -f "$TAG" "$GITHUB_SHA"
+          git push origin "$TAG" --force
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              release-files/LinkBridge-Windows.exe \
+              release-files/LinkBridge-Android.apk \
+              --clobber
+            gh release edit "$TAG" --title "$TITLE" --notes "$NOTES" --latest
+          else
+            gh release create "$TAG" \
+              release-files/LinkBridge-Windows.exe \
+              release-files/LinkBridge-Android.apk \
+              --title "$TITLE" \
+              --notes "$NOTES" \
+              --latest
+          fi
