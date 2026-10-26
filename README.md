@@ -32,7 +32,7 @@
 LinkBridge/
 ├── android/                  # Native Android Application (Kotlin, minSdk 28 -> targetSdk 34+)
 │   ├── app/
-│   │   ├── build.gradle.kts  # Configured with v1 + v2 + v3 + v4 Release APK Signing
+│   │   ├── build.gradle.kts  # Android 9+ Compatible Build Configuration (v1.0.0)
 │   │   └── src/main/
 │   │       ├── AndroidManifest.xml
 │   │       ├── java/com/linkbridge/app/
@@ -64,7 +64,7 @@ LinkBridge/
 │   ├── SECURITY_AND_PERMISSIONS.md
 │   ├── TROUBLESHOOTING.md
 │   └── TEST_REPORT.md
-├── .github/workflows/        # Automated Cloud CI/CD Pipeline (Node.js 24, Windows EXE & Signed Android APK)
+├── .github/workflows/        # Automated Cloud CI/CD Pipeline (Publishes directly to GitHub Releases)
 │   └── build_releases.yml
 ├── README.md                 # Primary English Documentation (GitHub Front Page)
 ├── README_AR.md              # Full Arabic Documentation
@@ -74,14 +74,14 @@ LinkBridge/
 
 ---
 
-## 🚀 Getting Started (Zero-Setup Cloud Build or Local Execution)
+## 🚀 Getting Started (Direct Download from GitHub Releases)
 
-### Option 1: Download Pre-Built Ready-to-Run Packages via GitHub Actions
-This repository includes an automated GitHub Actions pipeline (`.github/workflows/build_releases.yml`) running on **Node.js 24**:
-1. Push or upload this repository to GitHub and open the **Actions** tab.
-2. Select the latest **Build LinkBridge v1.0.0 Ready-to-Run EXE and APK** workflow run and scroll down to **Artifacts**:
-   - **`LinkBridge-Windows-EXE`**: Contains the standalone, single-file **`LinkBridge-Windows.exe`** (bundled with Python 3.11, PySide6, SQLite, and OpenSSL/cryptography, built with `--noupx`, PE VersionInfo metadata, and SHA-256 Authenticode signature — no Python installation required on your PC).
-   - **`LinkBridge-Android-APK`**: Contains **`LinkBridge-Android-v1.0.0.apk`**, cryptographically signed with **APK Signature Schemes v1 + v2 + v3** for seamless installation across **Android 9, 10, 11, 12, 13, 14, and 15+**.
+### Option 1: Download Directly from GitHub Releases (`v1.0.0`)
+The automated GitHub Actions pipeline (`.github/workflows/build_releases.yml`) compiles both apps and automatically publishes them directly to your repository's **Releases** section (`v1.0.0`):
+1. Open your repository on GitHub and click on **Releases** (on the right sidebar of the repository home page).
+2. Under **LinkBridge v1.0.0 — Ready-to-Run Windows EXE & Android APK** (`Assets`), click to download directly without needing to unzip any artifact archives:
+   - 💻 **`LinkBridge-Windows.exe`**: Standalone, single-file Windows 10/11 application (bundled with Python 3.11, PySide6, SQLite, and OpenSSL/cryptography, built with `--noupx`, PE VersionInfo metadata, and SHA-256 Authenticode signature — no Python installation required).
+   - 📱 **`LinkBridge-Android.apk`**: Ready-to-install Android application package compatible with **Android 9.0 (API 28) through Android 14/15+**.
 
 ### Option 2: How to Connect & Transfer in 3 Seconds
 1. **Launch Both Apps**: Open `LinkBridge-Windows.exe` on your PC and **LinkBridge** on your Android phone (connected to the same Wi-Fi router, or with your PC connected to your phone's Wi-Fi Hotspot without internet, or paired via Bluetooth).
