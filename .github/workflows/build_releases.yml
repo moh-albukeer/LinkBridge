@@ -114,9 +114,6 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Download Built Windows EXE & Android APK
         uses: actions/download-artifact@v4
         with:
@@ -129,35 +126,129 @@ jobs:
           find release-assets -name "LinkBridge-Windows.exe" -exec cp {} release-files/LinkBridge-Windows.exe \;
           find release-assets -name "LinkBridge-Android.apk" -exec cp {} release-files/LinkBridge-Android.apk \;
           ls -lh release-files/
+          test -f release-files/LinkBridge-Windows.exe
+          test -f release-files/LinkBridge-Android.apk
 
-      - name: Create or Update GitHub Release v1.0.0
+      - name: Create or Update GitHub Release v1.0.0 via GitHub REST API
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
         shell: bash
         run: |
-          TAG="v1.0.0"
-          TITLE="LinkBridge v1.0.0 — Ready-to-Run Windows EXE & Android APK"
-          NOTES="### 🌉 LinkBridge v1.0.0 — First Official Release
-          **Developed by:** Mohammed Albukeer (mohammedalbukeer@gmail.com)
+          python3 - << 'EOF'
+          import json
+          import os
+          import sys
+          import urllib.error
+          import urllib.request
 
-          #### 📥 Direct Downloads (التحميل المباشر):
-          - 💻 **Windows 10 / 11 (64-bit):** Download **`LinkBridge-Windows.exe`** below and run directly (standalone, zero dependencies).
-          - 📱 **Android 9.0+ (API 28–34+):** Download **`LinkBridge-Android.apk`** below and install directly on your phone."
+          token = os.environ["GITHUB_TOKEN"]
+          repo = os.environ["REPO"]
+          sha = os.environ["SHA"]
+          tag = "v1.0.0"
+          title = "LinkBridge v1.0.0 — Ready-to-Run Windows EXE & Android APK"
+          notes = (
+              "### 🌉 LinkBridge v1.0.0 — First Official Release\n"
+              "**Developed by:** Mohammed Albukeer (mohammedalbukeer@gmail.com)\n\n"
+              "#### 📥 Direct Downloads (التحميل المباشر):\n"
+              "- 💻 **Windows 10 / 11 (64-bit):** Download **`LinkBridge-Windows.exe`** below and run directly (standalone, zero dependencies).\n"
+              "- 📱 **Android 9.0+ (API 28–34+):** Download **`LinkBridge-Android.apk`** below and install directly on your phone.\n"
+          )
 
-          git tag -f "$TAG" "$GITHUB_SHA"
-          git push origin "$TAG" --force
+          headers = {
+              "Authorization": f"Bearer {token}",
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "LinkBridge-Release-Publisher",
+          }
 
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" \
-              release-files/LinkBridge-Windows.exe \
-              release-files/LinkBridge-Android.apk \
-              --clobber
-            gh release edit "$TAG" --title "$TITLE" --notes "$NOTES" --latest
-          else
-            gh release create "$TAG" \
-              release-files/LinkBridge-Windows.exe \
-              release-files/LinkBridge-Android.apk \
-              --title "$TITLE" \
-              --notes "$NOTES" \
-              --latest
-          fi
+          def api_req(method, url, data=None, content_type="application/json"):
+              req_headers = dict(headers)
+              body = None
+              if data is not None:
+                  if isinstance(data, (bytes, bytearray)):
+                      body = data
+                  else:
+                      body = json.dumps(data).encode("utf-8")
+                  req_headers["Content-Type"] = content_type
+              req = urllib.request.Request(url, data=body, headers=req_headers, method=method)
+              try:
+                  with urllib.request.urlopen(req) as resp:
+                      raw = resp.read().decode("utf-8")
+                      return resp.status, (json.loads(raw) if raw else {})
+              except urllib.error.HTTPError as e:
+                  err_body = e.read().decode("utf-8", errors="replace")
+                  return e.code, {"error": err_body}
+
+          base_url = f"https://api.github.com/repos/{repo}"
+
+          # 1. Check if release for tag v1.0.0 already exists
+          status, rel = api_req("GET", f"{base_url}/releases/tags/{tag}")
+          if status == 200 and "id" in rel:
+              release_id = rel["id"]
+              print(f"Found existing release {tag} (id={release_id}), updating metadata...")
+              status, rel = api_req(
+                  "PATCH",
+                  f"{base_url}/releases/{release_id}",
+                  {
+                      "tag_name": tag,
+                      "target_commitish": sha,
+                      "name": title,
+                      "body": notes,
+                      "draft": False,
+                      "prerelease": False,
+                  },
+              )
+          else:
+              print(f"Creating new GitHub Release {tag}...")
+              status, rel = api_req(
+                  "POST",
+                  f"{base_url}/releases",
+                  {
+                      "tag_name": tag,
+                      "target_commitish": sha,
+                      "name": title,
+                      "body": notes,
+                      "draft": False,
+                      "prerelease": False,
+                  },
+              )
+
+          if status not in (200, 201) or "id" not in rel:
+              print(f"::error::Failed to create or update GitHub Release (HTTP {status}): {rel}")
+              if status == 403:
+                  print(
+                      "::error::GitHub token lacks write permission! Go to Repository Settings -> Actions -> General -> Workflow permissions, and select 'Read and write permissions'."
+                  )
+              sys.exit(1)
+
+          release_id = rel["id"]
+          existing_assets = rel.get("assets", [])
+
+          # 2. Delete existing assets with the same names so we can overwrite cleanly
+          assets_to_upload = [
+              ("LinkBridge-Windows.exe", "release-files/LinkBridge-Windows.exe", "application/vnd.microsoft.portable-executable"),
+              ("LinkBridge-Android.apk", "release-files/LinkBridge-Android.apk", "application/vnd.android.package-archive"),
+          ]
+          target_names = {a[0] for a in assets_to_upload}
+          for asset in existing_assets:
+              if asset.get("name") in target_names:
+                  aid = asset["id"]
+                  print(f"Removing previous asset {asset['name']} (id={aid})...")
+                  api_req("DELETE", f"{base_url}/releases/assets/{aid}")
+
+          # 3. Upload fresh EXE and APK assets directly to the release
+          for name, filepath, ctype in assets_to_upload:
+              with open(filepath, "rb") as f:
+                  file_bytes = f.read()
+              upload_url = f"https://uploads.github.com/repos/{repo}/releases/{release_id}/assets?name={name}"
+              print(f"Uploading {name} ({len(file_bytes)} bytes)...")
+              up_status, up_resp = api_req("POST", upload_url, data=file_bytes, content_type=ctype)
+              if up_status not in (200, 201):
+                  print(f"::error::Failed to upload asset {name} (HTTP {up_status}): {up_resp}")
+                  sys.exit(1)
+              print(f"Successfully uploaded {name}: {up_resp.get('browser_download_url')}")
+
+          print("GitHub Release v1.0.0 published successfully!")
+          EOF
